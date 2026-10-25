@@ -2,7 +2,7 @@
 /bin/
 /dist/
 *.exe
-qdbot-llm
+/qdbot-llm
 
 # Go
 *.test
