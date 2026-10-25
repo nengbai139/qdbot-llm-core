@@ -1,0 +1,9 @@
+# 构建产物
+/bin/
+/dist/
+*.exe
+qdbot-llm
+
+# Go
+*.test
+*.out
