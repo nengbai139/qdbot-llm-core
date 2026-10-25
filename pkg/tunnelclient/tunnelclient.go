@@ -8,11 +8,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nengbai139/qdbot-llm-core/internal/auth"
-	"github.com/nengbai139/qdbot-llm-core/internal/clientid"
+	"github.com/nengbai139/qdbot-llm-core/pkg/auth"
+	"github.com/nengbai139/qdbot-llm-core/pkg/clientid"
 	"github.com/nengbai139/qdbot-llm-core/pkg/config"
-	"github.com/nengbai139/qdbot-llm-core/internal/subscription"
-	"github.com/nengbai139/qdbot-llm-core/internal/tunnel"
+	"github.com/nengbai139/qdbot-llm-core/pkg/subscription"
+	"github.com/nengbai139/qdbot-llm-core/pkg/tunnel"
 )
 
 // Client 管理反向隧道。cfg 必须是 *config.Config 指针。

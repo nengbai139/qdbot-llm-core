@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nengbai139/qdbot-llm-core/internal/protocol"
+	"github.com/nengbai139/qdbot-llm-core/pkg/protocol"
 )
 
 // TestClientServesForwardedRequest 服务端把 HTTP 请求转发过来，客户端必须代理到本地服务并回响应。

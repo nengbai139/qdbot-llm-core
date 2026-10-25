@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nengbai139/qdbot-llm-core/internal/protocol"
+	"github.com/nengbai139/qdbot-llm-core/pkg/protocol"
 )
 
 // TestClientSendsHeartbeat 客户端必须定时发心跳。

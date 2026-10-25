@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nengbai139/qdbot-llm-core/internal/protocol"
+	"github.com/nengbai139/qdbot-llm-core/pkg/protocol"
 )
 
 // 缺省心跳与读超时。读超时要比心跳长得多：偶尔丢一个心跳不该判死。

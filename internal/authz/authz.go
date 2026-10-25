@@ -15,8 +15,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/nengbai139/qdbot-llm-core/internal/auth"
-	"github.com/nengbai139/qdbot-llm-core/internal/subscription"
+	"github.com/nengbai139/qdbot-llm-core/pkg/auth"
+	"github.com/nengbai139/qdbot-llm-core/pkg/subscription"
 )
 
 var (

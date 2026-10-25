@@ -2,7 +2,7 @@
 // 供其他项目（如 qdbot-llm-market）复用：把本地端口一键暴露到公网子域名，并把模型注册进市场。
 //
 // Go 的 internal 可见性要求消费方必须在 github.com/nengbai139/qdbot-llm-core 之下，跨项目无法直接
-// import pkg/tunnelclient 或 internal/tunnel。本包是唯一对外公开的门面：
+// import pkg/tunnelclient 或 pkg/tunnel。本包是唯一对外公开的门面：
 // 内部完整复用 pkg/tunnelclient 的自愈重连 + 订阅令牌刷新 + client-id 派生，
 // 只暴露「暴露一个端口」「注册一个模型」两个语义。
 package rtunnel
@@ -16,8 +16,8 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/nengbai139/qdbot-llm-core/internal/auth"
-	"github.com/nengbai139/qdbot-llm-core/internal/clientid"
+	"github.com/nengbai139/qdbot-llm-core/pkg/auth"
+	"github.com/nengbai139/qdbot-llm-core/pkg/clientid"
 	"github.com/nengbai139/qdbot-llm-core/pkg/config"
 	"github.com/nengbai139/qdbot-llm-core/pkg/tunnelclient"
 )
