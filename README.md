@@ -2,15 +2,17 @@
 
 把本地 [Ollama](https://ollama.com) 模型变成一个 **Anthropic 兼容** 的 API 服务，让 Claude Code、Anthropic SDK 等工具直接接入本地模型。
 
-- **零依赖**：纯 Go 标准库实现，无第三方依赖
 - **本地运行**：模型与数据不出你的机器，完全离线可用
 - **流式输出**：支持 SSE 流式、tool_use、thinking
+- **核心零依赖**：协议翻译核心纯 Go 标准库；隧道客户端仅依赖 toml / yaml 两个开源库
 
 ## 免费开源 · 平台会员
 
-**本仓库是免费开源的本地网关**：`serve` / `pull` / `list` 全免费，本地跑模型、接 Claude Code 不花一分钱，模型与数据不出本机。
+**客户端（本仓库）完整开源、免费**：`serve` / `pull` / `list` / `install` / `expose` / `daemon` 全部子命令都在这里，本地跑模型、接 Claude Code 不花一分钱。
 
-想**一键接入平台**（把本地模型反向代理到公网，供他人调用或按量售卖），需注册平台会员（年费）。平台能力（`expose` 反向隧道、`daemon` 开机常驻、市场鉴权 / 路由 / 计量 / 结算）在闭源仓库，**不包含在本仓库**。
+`expose`（一键接入平台：把本地模型反向代理到公网，供人调用或按量售卖）和 `daemon` 需要**注册平台会员（年费）**才能用——但这个收费由**平台服务端校验订阅**实现，客户端代码本身开源、零密钥。
+
+**不在本仓库的闭源部分**：正向代理（含 SSH 密钥）、市场网关（`llm-gateway` 鉴权 / 路由 / 计量 / 结算）。
 
 ## 快速开始
 
@@ -33,6 +35,8 @@ qdbot-llm install                # 检测 ollama，未装则打印安装提示�
 qdbot-llm pull <model>           # 拉取模型（透传 ollama pull）
 qdbot-llm list                   # 列出本地模型（透传 ollama list）
 qdbot-llm serve [--addr ...] [--ollama ...]   # 启动本地网关
+qdbot-llm expose [--model ...]   # 网关 + 反向隧道（一键接入平台，需会员）
+qdbot-llm daemon install|start|stop|status|uninstall   # 开机常驻 + 断线重连
 ```
 
 `serve` 默认监听 `127.0.0.1:4000`，上游 Ollama 地址可用 `--ollama` 或环境变量 `OLLAMA_URL` 指定（默认 `http://127.0.0.1:11434`）。
