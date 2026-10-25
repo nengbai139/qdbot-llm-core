@@ -10,7 +10,7 @@ import (
 
 	"github.com/nengbai139/qdbot-llm-core/internal/auth"
 	"github.com/nengbai139/qdbot-llm-core/internal/clientid"
-	"github.com/nengbai139/qdbot-llm-core/internal/config"
+	"github.com/nengbai139/qdbot-llm-core/pkg/config"
 	"github.com/nengbai139/qdbot-llm-core/internal/subscription"
 	"github.com/nengbai139/qdbot-llm-core/internal/tunnel"
 )
@@ -118,6 +118,13 @@ func (c *Client) URL() string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.url
+}
+
+// Running 返回隧道是否在运行（cancel 非空视为已启动）。
+func (c *Client) Running() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.cancel != nil
 }
 
 func (c *Client) setURL(url string) {
