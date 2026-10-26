@@ -39,7 +39,7 @@ type ServerConfig struct {
 	Address    string `toml:"address"`     // 如 tunnel.example.com:9444
 	Domain     string `toml:"domain"`      // 通配符域名，如 tunnel.aimatchem.com
 	DNS        string `toml:"dns"`         // aliyun / cloudflare / ""（不自动写 DNS）
-	AuthSecret string `toml:"auth_secret"` // 已废弃：订阅令牌改由服务端签发，客户端不再持有/使用此密钥（保留字段兼容旧 config.toml）
+	AuthSecret string `toml:"auth_secret"` // 已废弃：订阅令牌改由服务端签发，客户端不再持有/使用此密钥（仅保留字段兼容旧 config.toml，读取后即丢弃、不再落盘）
 }
 
 // TunnelConfig 反向隧道客户端要暴露的本地服务。
@@ -129,6 +129,9 @@ func Load(path string) (*Config, error) {
 	if err := toml.Unmarshal(b, cfg); err != nil {
 		return nil, err
 	}
+	// auth_secret 已废弃：订阅令牌改由服务端签发，客户端不再持有这把密钥。
+	// 读到就丢掉——留着只会让密钥在客户端文件里多活一天。
+	cfg.Server.AuthSecret = ""
 	return cfg, nil
 }
 
@@ -166,10 +169,12 @@ func Save(path string, cfg *Config) error {
 }
 
 // writeClientConfig 把客户端可见字段写回 config.toml：
-//   - 必显的 3 个用户字段：tunnel.local / proxy.port / proxy.rules
-//   - [server] 段：address（公开）和 auth_secret（HMAC 密钥，与服务端协商）；
-//     auth_secret 不应让用户手写，但 daemon 启动要读到它来签 SUBSCRIBE token，所以必须落盘
-//   - 旧版（v0.3.x）不写 [server]，导致 cmdRun 中 cfg = mustLoad() 后 AuthSecret 变成空 —— tunnel 用空签名被 reject
+//   - 用户字段：tunnel.local / proxy.port / proxy.rules / proxy.relays
+//   - [server] 段：只写 address（公开信息）
+//
+// 不再写 auth_secret：订阅令牌已改为服务端签发（客户端用 auth.json 里的令牌
+// 去平台换），客户端没有任何代码再需要这把密钥。落盘只会让密钥在用户机器上
+// 多留一份副本。
 func writeClientConfig(path string, cfg *Config) error {
 	if dir := filepath.Dir(path); dir != "" {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -178,14 +183,9 @@ func writeClientConfig(path string, cfg *Config) error {
 	}
 	body := &strings.Builder{}
 	body.WriteString("# qdbot tunel 客户端配置\n")
-	if cfg.Server.Address != "" || cfg.Server.AuthSecret != "" {
+	if cfg.Server.Address != "" {
 		body.WriteString("[server]\n")
-		if cfg.Server.Address != "" {
-			fmt.Fprintf(body, "address = %q\n", cfg.Server.Address)
-		}
-		if cfg.Server.AuthSecret != "" {
-			fmt.Fprintf(body, "auth_secret = %q\n", cfg.Server.AuthSecret)
-		}
+		fmt.Fprintf(body, "address = %q\n", cfg.Server.Address)
 		body.WriteString("\n")
 	}
 	if cfg.Tunnel.Local != "" || cfg.Tunnel.Local6 != "" {
