@@ -1,5 +1,5 @@
 // Package tunnelclient 反向隧道客户端管理：启动/停止/公网 URL。
-// 从 qdbot_tunnel/internal/manager 拆出的隧道子集，不沾正向代理（proxy 及其密钥留在闭源）。
+// 与正向代理（pkg/proxy）并列：两者都只依赖服务端签发的订阅令牌，客户端零密钥。
 package tunnelclient
 
 import (
