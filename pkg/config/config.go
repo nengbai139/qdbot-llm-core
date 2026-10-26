@@ -75,6 +75,14 @@ type ProxyConfig struct {
 	// 改 0.0.0.0 等于在所有网卡上开开放代理，必须用防火墙只放行可信网段**
 	// （docker 网段 / 内网网段），绝不能让公网直接可达。
 	Bind string `toml:"bind"`
+	// Relays 正向代理中继节点列表（host:port），第一个为主、其余为备用。
+	//
+	// 走「海外节点中继」模式：客户端只发订阅令牌，中继验令牌后直接从海外出网，
+	// 流量不经过平台服务器，客户端零密钥（无需内嵌私钥）。
+	//
+	// 由平台下发（proxy.relays），客户端不写死节点地址：节点增减/换 IP 不用发新版。
+	// 留空则用客户端内置的官方列表兜底。
+	Relays []string `toml:"relays"`
 }
 
 // Default 返回带默认值的配置（未配置时兜底）。默认指向官方节点 tunnel.aimatchem.com。
@@ -198,6 +206,17 @@ func writeClientConfig(path string, cfg *Config) error {
 	if len(cfg.Proxy.Rules) > 0 {
 		body.WriteString("rules = [")
 		for i, r := range cfg.Proxy.Rules {
+			if i > 0 {
+				body.WriteString(", ")
+			}
+			fmt.Fprintf(body, "%q", r)
+		}
+		body.WriteString("]\n")
+	}
+	// relays 海外中继节点列表（平台下发的中继地址）。留空则用客户端内置兜底列表。
+	if len(cfg.Proxy.Relays) > 0 {
+		body.WriteString("relays = [")
+		for i, r := range cfg.Proxy.Relays {
 			if i > 0 {
 				body.WriteString(", ")
 			}
