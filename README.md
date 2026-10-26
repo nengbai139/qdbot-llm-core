@@ -6,18 +6,24 @@
 - **流式输出**：支持 SSE 流式、tool_use、thinking
 - **核心零依赖**：协议翻译核心纯 Go 标准库；隧道客户端仅依赖 toml / yaml 两个开源库
 
-## 免费开源 · 平台会员
+## 功能一览
 
-**客户端（本仓库）完整开源、免费**：`serve` / `pull` / `list` / `install` / `expose` / `daemon` 全部子命令都在这里，本地跑模型、接 Claude Code 不花一分钱。
+客户端的全部能力都在本仓库：
 
-`expose`（一键接入平台：把本地模型反向代理到公网，供人调用或按量售卖）和 `daemon` 需要**注册平台会员（年费）**才能用——但这个收费由**平台服务端校验订阅**实现，客户端代码本身开源、零密钥。
+| 能力 | 命令 / 包 | 说明 |
+|------|-----------|------|
+| 本地模型网关 | `serve` | 把本地 Ollama 翻译成 Anthropic Messages 协议，Claude Code / Anthropic SDK 直接接入 |
+| 模型管理 | `install` / `pull` / `list` | 检测 Ollama、拉取模型、列出本地模型 |
+| 公网暴露 | `expose` | 本地服务经反向隧道挂到公网域名，拿到一个可对外访问的地址 |
+| 常驻自启 | `daemon` | macOS / Linux / Windows 三平台常驻，开机自启、断线自动重连 |
+| 正向代理 | `pkg/proxy` | 本地 HTTP+SOCKS5 同端口代理，流量经海外中继出网；配套 `pkg/sysproxy`（系统代理 / PAC 分流）、`pkg/authz`（授权校验） |
 
-**不在本仓库的闭源部分**：中继节点服务端（`tunnel-relay`）、市场网关（`llm-gateway` 鉴权 / 路由 / 计量 / 结算）。
+隧道与代理的设计要点：
 
-**正向代理（`pkg/proxy`）也已开源**：本地 HTTP+SOCKS5 同端口代理，流量经海外中继出网。
-客户端零密钥——不持任何 SSH 私钥，只发订阅令牌，中继回平台校验后才放行。
-节点地址由平台下发（`config.toml` 的 `proxy.relays`），代码里不写死。
-配套 `pkg/sysproxy`（系统代理 / PAC 分流）与 `pkg/authz`（订阅权益校验）也在这里。
+- **零密钥**：客户端不持任何 SSH 私钥，也不内置共享密钥——只用服务端签发的授权令牌。
+- **节点不写死**：中继地址由服务端下发到 `config.toml` 的 `proxy.relays`，换节点不用换客户端版本。
+- **多节点容错**：节点轮询 + 后台健康探测，故障节点自动跳过，不拖累正常节点上的请求。
+- **纯 Go 实现**：核心只用标准库，额外依赖仅 toml / yaml 两个开源库。
 
 ## 快速开始
 
@@ -40,7 +46,7 @@ qdbot-llm install                # 检测 ollama，未装则打印安装提示�
 qdbot-llm pull <model>           # 拉取模型（透传 ollama pull）
 qdbot-llm list                   # 列出本地模型（透传 ollama list）
 qdbot-llm serve [--addr ...] [--ollama ...]   # 启动本地网关
-qdbot-llm expose [--model ...]   # 网关 + 反向隧道（一键接入平台，需会员）
+qdbot-llm expose [--model ...]   # 网关 + 反向隧道（把本地服务暴露到公网）
 qdbot-llm daemon install|start|stop|status|uninstall   # 开机常驻 + 断线重连
 ```
 
