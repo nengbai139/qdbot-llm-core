@@ -12,7 +12,7 @@
 
 | 能力 | 命令 / 包 | 说明 |
 |------|-----------|------|
-| 本地模型网关 | `serve` | 把本地 Ollama 翻译成 Anthropic Messages 协议，Claude Code / Anthropic SDK 直接接入 |
+| 本地模型网关 | `serve` | 把本地 Ollama 翻译成 Anthropic Messages、OpenAI Chat Completions 和 Responses |
 | 模型管理 | `install` / `pull` / `list` | 检测 Ollama、拉取模型、列出本地模型 |
 | 公网暴露 | `expose` | 本地服务经反向隧道挂到公网域名，拿到一个可对外访问的地址 |
 | 常驻自启 | `daemon` | macOS / Linux / Windows 三平台常驻，开机自启、断线自动重连 |
@@ -46,15 +46,16 @@ qdbot-llm daemon install|start|stop|status|uninstall   # 开机常驻 + 断线�
 
 ## 协议
 
-本地网关把 Anthropic Messages 协议翻译成 Ollama 原生协议：
+本地网关把下面这些协议都翻译成 Ollama `POST /api/chat`：
 
 | 协议 | 端点 | 说明 |
 |---|---|---|
-| Anthropic Messages | `POST /v1/messages` | Claude Code / Anthropic SDK 走这里 |
+| Anthropic Messages | `POST /v1/messages` | Claude Code、OpenCode 的 Anthropic 包 |
+| OpenAI Chat Completions | `POST /v1/chat/completions` | OpenAI SDK、OpenCode 的 OpenAI 包 |
+| OpenAI Models | `GET /v1/models` | 列出本机 Ollama 模型（`/api/tags`） |
+| OpenAI Responses | `POST /v1/responses` | Codex（`wire_api = "responses"`） |
 
-按请求的 `stream` 字段自动分流：非流式返回 JSON，流式返回 SSE（`text/event-stream`）。
-
-本地 `serve` 只提供上面这一条。Codex 和走 OpenAI 协议的客户端要连公网市场网关，见下一节。
+按请求的 `stream` 字段分流：非流式返回 JSON，流式返回 SSE。市场形态的模型 id（`gemma4@别名`）会剥掉 `@` 后面再交给 Ollama。
 
 ## 接入
 
@@ -107,28 +108,28 @@ export ANTHROPIC_DEFAULT_HAIKU_MODEL=gemma4@qwen3
 
 公网把 `baseURL` 换成 `https://llm.tunnel.aimatchem.com/v1`，`modelID` 换成目录里的 id（如 `gemma4@qwen3`），`ANTHROPIC_API_KEY` 换成 `sk-` key。
 
-也可以改用 OpenAI 兼容包 `@opencode/ai/providers/openai-compatible`，`baseURL` 同样是 `https://llm.tunnel.aimatchem.com/v1`（请求 `/v1/chat/completions`）。这条只在公网市场网关上有，本地 `serve` 没有。
+也可以改用 OpenAI 兼容包 `@opencode/ai/providers/openai-compatible`。本地 `baseURL` 是 `http://127.0.0.1:4000/v1`，公网是 `https://llm.tunnel.aimatchem.com/v1`（请求 `/v1/chat/completions`）。
 
 ### Codex
 
-Codex 只走 Responses API（`wire_api = "responses"`），请求 `POST /v1/responses`。本地 `serve` 没有这个端点，配置指向公网市场网关。`~/.codex/config.toml`：
+Codex 只走 Responses API（`wire_api = "responses"`），请求 `POST /v1/responses`。本地和公网都认。`~/.codex/config.toml` 连本地：
 
 ```toml
 model_provider = "qdbot"
-model = "gemma4@qwen3"
+model = "gemma4"
 
 [model_providers.qdbot]
 name = "qdbot"
-base_url = "https://llm.tunnel.aimatchem.com/v1"
+base_url = "http://127.0.0.1:4000/v1"
 env_key = "QDBOT_API_KEY"
 wire_api = "responses"
 ```
 
-```bash
-export QDBOT_API_KEY=sk-...
-```
+公网把 `base_url` 换成 `https://llm.tunnel.aimatchem.com/v1`，`model` 换成 `GET /v1/models` 里的 id（如 `gemma4@qwen3`）。`base_url` 以 `/v1` 结尾，Codex 会自己拼 `/responses`。`wire_api` 只能写 `responses`。本地 `serve` 不校验 key，但 Codex 会读这个环境变量，填任意非空值即可：
 
-`base_url` 以 `/v1` 结尾，Codex 会自己拼 `/responses`。`wire_api` 只能写 `responses`。
+```bash
+export QDBOT_API_KEY=local
+```
 
 ## 构建
 

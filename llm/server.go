@@ -10,21 +10,29 @@ import (
 	"time"
 )
 
-// Serve 启动本地网关：POST /v1/messages（Anthropic）→ Ollama /api/chat。
-// 阻塞直到进程退出。支持非流式与 SSE 流式（按请求的 stream 字段分流）。
+// Serve 启动本地网关，阻塞直到进程退出。
+// Anthropic /v1/messages、OpenAI /v1/chat/completions、Responses /v1/responses 都译成 Ollama /api/chat。
 func Serve(addr, ollamaURL string) {
-	http.HandleFunc("/v1/messages", handleMessages(ollamaURL))
 	log.Printf("qdbot-llm 网关监听 %s，上游 Ollama %s", addr, ollamaURL)
-	if err := http.ListenAndServe(addr, nil); err != nil {
+	if err := http.ListenAndServe(addr, Handler(ollamaURL)); err != nil {
 		log.Fatalf("启动失败: %v", err)
 	}
 }
 
-// handleMessages 处理 Anthropic POST /v1/messages：翻译 → 转发 Ollama → 反向翻译。
-func handleMessages(ollamaURL string) http.HandlerFunc {
+// Handler 是本地网关的路由。测试和嵌入用它，避免占住 DefaultServeMux。
+func Handler(ollamaURL string) http.Handler {
 	// 本地大模型推理慢，给足超时（CPU 9B 模型单次可达数分钟）。
 	client := &http.Client{Timeout: 15 * time.Minute}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v1/messages", handleMessages(client, ollamaURL))
+	mux.HandleFunc("/v1/chat/completions", handleChat(client, ollamaURL))
+	mux.HandleFunc("/v1/responses", handleResponses(client, ollamaURL))
+	mux.HandleFunc("/v1/models", handleModels(client, ollamaURL))
+	return mux
+}
 
+// handleMessages 处理 Anthropic POST /v1/messages：翻译 → 转发 Ollama → 反向翻译。
+func handleMessages(client *http.Client, ollamaURL string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "仅支持 POST", http.StatusMethodNotAllowed)
@@ -37,32 +45,19 @@ func handleMessages(ollamaURL string) http.HandlerFunc {
 			return
 		}
 
-		ollamaReq, err := ToOllama(req)
+		upstream, err := translateAndPost(client, ollamaURL, req)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		body, err := json.Marshal(ollamaReq)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("编码上游请求失败: %v", err), http.StatusInternalServerError)
-			return
-		}
-
-		upstream, err := client.Post(ollamaURL+"/api/chat", "application/json", bytes.NewReader(body))
-		if err != nil {
-			http.Error(w, fmt.Sprintf("调用上游失败: %v", err), http.StatusBadGateway)
+			code := http.StatusBadGateway
+			if isBadRequest(err) {
+				code = http.StatusBadRequest
+			}
+			http.Error(w, err.Error(), code)
 			return
 		}
 		defer upstream.Body.Close()
 
-		if upstream.StatusCode != http.StatusOK {
-			b, _ := io.ReadAll(upstream.Body)
-			http.Error(w, fmt.Sprintf("上游返回 %d: %s", upstream.StatusCode, b), http.StatusBadGateway)
-			return
-		}
-
 		if req.Stream {
-			streamAnthropic(w, upstream.Body, ollamaReq.Model)
+			streamAnthropic(w, upstream.Body, OllamaModelFor(req.Model))
 			return
 		}
 
@@ -91,4 +86,34 @@ func streamAnthropic(w http.ResponseWriter, body io.Reader, model string) {
 
 func newRequestID() string {
 	return fmt.Sprintf("msg_%d", time.Now().UnixNano())
+}
+
+// translateAndPost 把 Anthropic 形态的请求译成 Ollama /api/chat 并拿回响应。
+// 调用方负责关闭成功时的 Body。请求本身不合法时返回 badRequestError。
+func translateAndPost(client *http.Client, ollamaURL string, req AnthropicMessageRequest) (*http.Response, error) {
+	oreq, err := ToOllama(req)
+	if err != nil {
+		return nil, badRequestError{err}
+	}
+	body, err := json.Marshal(oreq)
+	if err != nil {
+		return nil, err
+	}
+	up, err := client.Post(ollamaURL+"/api/chat", "application/json", bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("调用上游失败: %v", err)
+	}
+	if up.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(up.Body)
+		up.Body.Close()
+		return nil, fmt.Errorf("上游返回 %d: %s", up.StatusCode, b)
+	}
+	return up, nil
+}
+
+type badRequestError struct{ error }
+
+func isBadRequest(err error) bool {
+	_, ok := err.(badRequestError)
+	return ok
 }
