@@ -1,8 +1,8 @@
 # qdbot-llm-core
 
-当前版本 **v0.5.0**。
+当前版本 **v0.6.0**。
 
-把本地 [Ollama](https://ollama.com) 模型变成 **Anthropic、OpenAI、Responses** 兼容的 API 服务。Claude Code、Anthropic SDK、OpenAI SDK、Codex、OpenCode 可以直接接本地模型。
+把本地 [Ollama](https://ollama.com) 或 [vMLX](https://vmlx.net/) 模型变成 **Anthropic、OpenAI、Responses** 兼容的 API 服务。Claude Code、Anthropic SDK、OpenAI SDK、Codex、OpenCode 可以直接接本地模型，也可以经反向隧道挂到公网。
 
 - **本地运行**：模型与数据不出你的机器，完全离线可用
 - **流式输出**：支持 SSE 流式、tool_use、thinking
@@ -14,7 +14,7 @@
 
 | 能力 | 命令 / 包 | 说明 |
 |------|-----------|------|
-| 本地模型网关 | `serve` | 把本地 Ollama 翻译成 Anthropic Messages、OpenAI Chat Completions 和 Responses |
+| 本地模型网关 | `serve` | Ollama 译成 Anthropic / OpenAI / Responses；`--backend vmlx` 时原样转发到本地 vMLX |
 | 模型管理 | `install` / `pull` / `list` | 检测 Ollama、拉取模型、列出本地模型 |
 | 公网暴露 | `expose` | 本地服务经反向隧道挂到公网域名，拿到一个可对外访问的地址 |
 | 常驻自启 | `daemon` | macOS / Linux / Windows 三平台常驻，开机自启、断线自动重连 |
@@ -39,16 +39,32 @@ export ANTHROPIC_MODEL=gemma4
 qdbot-llm install                # 检测 ollama，未装则打印安装提示（不自动装）
 qdbot-llm pull <model>           # 拉取模型（透传 ollama pull）
 qdbot-llm list                   # 列出本地模型（透传 ollama list）
-qdbot-llm serve [--addr ...] [--ollama ...]   # 启动本地网关
-qdbot-llm expose [--model ...]   # 网关 + 反向隧道（把本地服务暴露到公网）
+qdbot-llm serve [--backend ollama|vmlx] [--ollama ...] [--vmlx ...]   # 启动本地网关
+qdbot-llm expose [--backend vmlx] [--model ...]   # 网关 + 反向隧道（把本地服务暴露到公网）
 qdbot-llm daemon install|start|stop|status|uninstall   # 开机常驻 + 断线重连
 ```
 
-`serve` 默认监听 `127.0.0.1:4000`，上游 Ollama 地址可用 `--ollama` 或环境变量 `OLLAMA_URL` 指定（默认 `http://127.0.0.1:11434`）。
+`serve` 默认监听 `127.0.0.1:4000`。默认上游是 Ollama（`--ollama` 或 `OLLAMA_URL`，默认 `http://127.0.0.1:11434`），请求会译成 Ollama `/api/chat`。
+
+vMLX 自己说 Anthropic、OpenAI 和 Responses，所以 `--backend vmlx` 把这几条原样转到 vMLX，不再翻译。`vmlx serve` 默认 `http://127.0.0.1:8000`，桌面版 API Gateway 是 `http://127.0.0.1:8080`，用 `--vmlx` 或 `VMLX_URL` 指定。
+
+```bash
+qdbot-llm serve --backend vmlx
+qdbot-llm serve --backend vmlx --vmlx http://127.0.0.1:8080
+```
+
+挂到公网前先 `qtunnel login`。`expose` 和 `serve` 用同一组 `--backend`。`--model` 必须是 vMLX 认得的名字，公网 id 是 `模型名@隧道别名`：
+
+```bash
+vmlx serve mlx-community/Qwen3-8B-4bit
+qdbot-llm expose --backend vmlx --model mlx-community/Qwen3-8B-4bit
+```
+
+使用方仍连 `https://llm.tunnel.aimatchem.com`，模型 id 看 `GET /v1/models`。
 
 ## 协议
 
-本地网关把下面这些协议都翻译成 Ollama `POST /api/chat`：
+默认上游是 Ollama，下面这些协议都译成 Ollama `POST /api/chat`。`--backend vmlx` 时不翻译，原样转到 vMLX 的同名路径。
 
 | 协议 | 端点 | 说明 |
 |---|---|---|
@@ -134,6 +150,10 @@ export QDBOT_API_KEY=local
 ```
 
 ## 版本
+
+### v0.6.0
+
+增加本地 vMLX 上游。`qdbot-llm serve --backend vmlx` 和 `expose --backend vmlx` 把 Anthropic、OpenAI、Responses 原样转到 vMLX（默认 `http://127.0.0.1:8000`）。Ollama 仍是默认上游。
 
 ### v0.5.0
 

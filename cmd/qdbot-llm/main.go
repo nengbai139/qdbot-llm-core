@@ -66,18 +66,17 @@ func usage() {
   daemon              服务常驻 + 开机自启（复用 qdbot_tunnel 三平台 daemon）
 
 环境变量:
-  OLLAMA_URL  Ollama 地址，默认 http://127.0.0.1:11434`, version)
+  OLLAMA_URL  Ollama 地址，默认 http://127.0.0.1:11434
+  VMLX_URL    vMLX 地址，默认 http://127.0.0.1:8000`, version)
 }
 
 // serve 只起本地网关，不做公网暴露。
 func cmdServe(args []string) {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
 	addr := fs.String("addr", "127.0.0.1:4000", "网关监听地址")
-	ollama := fs.String("ollama", ollamaEnv(), "Ollama 地址")
+	backend, ollama, vmlx := upstreamFlags(fs)
 	_ = fs.Parse(args)
-
-	log.Printf("本地网关监听 %s，上游 Ollama %s", *addr, *ollama)
-	llm.Serve(*addr, *ollama)
+	serveUpstream(*addr, *backend, *ollama, *vmlx)
 }
 
 // expose 起网关 + 复用 qdbot_tunnel 的 client 端反代隧道，把网关暴露到公网。
@@ -85,7 +84,7 @@ func cmdServe(args []string) {
 func cmdExpose(args []string) {
 	fs := flag.NewFlagSet("expose", flag.ExitOnError)
 	addr := fs.String("addr", "127.0.0.1:4000", "网关监听地址")
-	ollama := fs.String("ollama", ollamaEnv(), "Ollama 地址")
+	backend, ollama, vmlx := upstreamFlags(fs)
 	model := fs.String("model", "", "注册到市场的模型名（如 gemma4），空 = 不注册")
 	priceIn := fs.Float64("price-in", 0, "¥/百万 input token")
 	priceOut := fs.Float64("price-out", 0, "¥/百万 output token")
@@ -93,7 +92,7 @@ func cmdExpose(args []string) {
 	_ = fs.Parse(args)
 
 	// 1. 后台起本地网关（隧道转发的目标）
-	go llm.Serve(*addr, *ollama)
+	go serveUpstream(*addr, *backend, *ollama, *vmlx)
 
 	// 2. 复用 qdbot_tunnel 的反向隧道：把 local 指向本地网关。
 	exposed, err := rtunnel.Expose(*addr)
@@ -115,8 +114,27 @@ func cmdExpose(args []string) {
 	for {
 		time.Sleep(3 * time.Second)
 		if u := exposed.URL(); u != "" {
-			log.Printf("公网 Anthropic 端点: %s/v1/messages", u)
+			log.Printf("公网端点: %s （/v1/messages、/v1/chat/completions、/v1/responses）", u)
 		}
+	}
+}
+
+func upstreamFlags(fs *flag.FlagSet) (backend, ollama, vmlx *string) {
+	backend = fs.String("backend", "ollama", "上游：ollama 或 vmlx")
+	ollama = fs.String("ollama", ollamaEnv(), "Ollama 地址")
+	vmlx = fs.String("vmlx", vmlxEnv(), "vMLX 地址")
+	return
+}
+
+// serveUpstream 按 backend 启动。vMLX 原样转发；Ollama 走协议翻译。
+func serveUpstream(addr, backend, ollama, vmlx string) {
+	switch backend {
+	case "vmlx":
+		llm.ServeVMLX(addr, vmlx)
+	case "", "ollama":
+		llm.Serve(addr, ollama)
+	default:
+		log.Fatalf("未知 backend %q（用 ollama 或 vmlx）", backend)
 	}
 }
 
@@ -126,4 +144,11 @@ func ollamaEnv() string {
 		return v
 	}
 	return "http://127.0.0.1:11434"
+}
+
+func vmlxEnv() string {
+	if v := os.Getenv("VMLX_URL"); v != "" {
+		return v
+	}
+	return "http://127.0.0.1:8000"
 }
