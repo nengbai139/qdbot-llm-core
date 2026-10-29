@@ -42,7 +42,7 @@ func TestOpenAIRoutes(t *testing.T) {
 	h := Handler(ollama.URL)
 
 	chat := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(
-		`{"model":"gemma4@qwen3","messages":[{"role":"user","content":"hi"}]}`))
+		`{"model":"gemma4@studio","messages":[{"role":"user","content":"hi"}]}`))
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, chat)
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"content":"pong"`) || seenModel != "gemma4" {

@@ -1,6 +1,8 @@
 # qdbot-llm-core
 
-把本地 [Ollama](https://ollama.com) 模型变成一个 **Anthropic 兼容** 的 API 服务，让 Claude Code、Anthropic SDK 等工具直接接入本地模型。
+当前版本 **v0.5.0**。
+
+把本地 [Ollama](https://ollama.com) 模型变成 **Anthropic、OpenAI、Responses** 兼容的 API 服务。Claude Code、Anthropic SDK、OpenAI SDK、Codex、OpenCode 可以直接接本地模型。
 
 - **本地运行**：模型与数据不出你的机器，完全离线可用
 - **流式输出**：支持 SSE 流式、tool_use、thinking
@@ -59,7 +61,7 @@ qdbot-llm daemon install|start|stop|status|uninstall   # 开机常驻 + 断线�
 
 ## 接入
 
-模型名分两种：连本地 `serve` 时用 Ollama 里的名字（如 `gemma4`）；连公网时用 `GET https://llm.tunnel.aimatchem.com/v1/models` 返回的 `id`（如 `gemma4@qwen3`）。公网 key 是 dashboard 签发的 `sk-` key。本地 `serve` 不校验 key，但 Claude Code 要求这个环境变量非空，填任意值即可。
+模型名分两种。连本地 `serve` 时用 Ollama 里的名字（如 `gemma4`）。连公网时用 `GET https://llm.tunnel.aimatchem.com/v1/models` 返回的 `id`。`@` 后面是隧道别名，不是另一个模型。别名不要用模型名。这台提供方的别名是 `studio`，所以 id 是 `gemma4@studio`。公网 key 是 dashboard 签发的 `sk-` key。本地 `serve` 不校验 key，但 Claude Code 要求这个环境变量非空，填任意值即可。
 
 ### Claude Code
 
@@ -79,10 +81,10 @@ export ANTHROPIC_DEFAULT_HAIKU_MODEL=gemma4
 ```bash
 export ANTHROPIC_BASE_URL=https://llm.tunnel.aimatchem.com
 export ANTHROPIC_API_KEY=sk-...
-export ANTHROPIC_MODEL=gemma4@qwen3
-export ANTHROPIC_DEFAULT_OPUS_MODEL=gemma4@qwen3
-export ANTHROPIC_DEFAULT_SONNET_MODEL=gemma4@qwen3
-export ANTHROPIC_DEFAULT_HAIKU_MODEL=gemma4@qwen3
+export ANTHROPIC_MODEL=gemma4@studio
+export ANTHROPIC_DEFAULT_OPUS_MODEL=gemma4@studio
+export ANTHROPIC_DEFAULT_SONNET_MODEL=gemma4@studio
+export ANTHROPIC_DEFAULT_HAIKU_MODEL=gemma4@studio
 ```
 
 `ANTHROPIC_BASE_URL` 不要带 `/v1`，Claude Code 自己会请求 `/v1/messages`。`ANTHROPIC_AUTH_TOKEN` 同样可用，网关认 Bearer 和 `x-api-key`。三条 `ANTHROPIC_DEFAULT_*` 都要设成同一个模型，否则 Claude Code 仍会去要名为 `claude-…` 的模型。
@@ -106,7 +108,7 @@ export ANTHROPIC_DEFAULT_HAIKU_MODEL=gemma4@qwen3
 }
 ```
 
-公网把 `baseURL` 换成 `https://llm.tunnel.aimatchem.com/v1`，`modelID` 换成目录里的 id（如 `gemma4@qwen3`），`ANTHROPIC_API_KEY` 换成 `sk-` key。
+公网把 `baseURL` 换成 `https://llm.tunnel.aimatchem.com/v1`，`modelID` 换成目录里的 id（如 `gemma4@studio`），`ANTHROPIC_API_KEY` 换成 `sk-` key。
 
 也可以改用 OpenAI 兼容包 `@opencode/ai/providers/openai-compatible`。本地 `baseURL` 是 `http://127.0.0.1:4000/v1`，公网是 `https://llm.tunnel.aimatchem.com/v1`（请求 `/v1/chat/completions`）。
 
@@ -125,11 +127,33 @@ env_key = "QDBOT_API_KEY"
 wire_api = "responses"
 ```
 
-公网把 `base_url` 换成 `https://llm.tunnel.aimatchem.com/v1`，`model` 换成 `GET /v1/models` 里的 id（如 `gemma4@qwen3`）。`base_url` 以 `/v1` 结尾，Codex 会自己拼 `/responses`。`wire_api` 只能写 `responses`。本地 `serve` 不校验 key，但 Codex 会读这个环境变量，填任意非空值即可：
+公网把 `base_url` 换成 `https://llm.tunnel.aimatchem.com/v1`，`model` 换成 `GET /v1/models` 里的 id（如 `gemma4@studio`）。`base_url` 以 `/v1` 结尾，Codex 会自己拼 `/responses`。`wire_api` 只能写 `responses`。本地 `serve` 不校验 key，但 Codex 会读这个环境变量，填任意非空值即可：
 
 ```bash
 export QDBOT_API_KEY=local
 ```
+
+## 版本
+
+### v0.5.0
+
+本地网关增加 OpenAI Chat Completions（`POST /v1/chat/completions`）、模型列表（`GET /v1/models`）和 Responses（`POST /v1/responses`）。三条都译成 Ollama `/api/chat`。Claude Code、OpenCode、Codex 可以接 `127.0.0.1:4000`。
+
+### v0.4.0
+
+正向代理下沉到本仓库。客户端不再把 `auth_secret` 落盘。
+
+### v0.3.0
+
+隧道、协议、订阅相关代码提升为公开包 `pkg/`，供服务端复用。
+
+### v0.2.0
+
+完整客户端开源：`expose`、`daemon` 和隧道客户端。
+
+### v0.1.0
+
+首个开源版本：本地网关和 `qdbot-llm` 命令行。
 
 ## 构建
 
