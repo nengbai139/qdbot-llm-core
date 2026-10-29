@@ -54,7 +54,81 @@ qdbot-llm daemon install|start|stop|status|uninstall   # 开机常驻 + 断线�
 
 按请求的 `stream` 字段自动分流：非流式返回 JSON，流式返回 SSE（`text/event-stream`）。
 
-> 当前只实现了 Anthropic Messages 端点；OpenAI 兼容端点（`POST /v1/chat/completions`）尚未实现。
+本地 `serve` 只提供上面这一条。Codex 和走 OpenAI 协议的客户端要连公网市场网关，见下一节。
+
+## 接入
+
+模型名分两种：连本地 `serve` 时用 Ollama 里的名字（如 `gemma4`）；连公网时用 `GET https://llm.tunnel.aimatchem.com/v1/models` 返回的 `id`（如 `gemma4@qwen3`）。公网 key 是 dashboard 签发的 `sk-` key。本地 `serve` 不校验 key，但 Claude Code 要求这个环境变量非空，填任意值即可。
+
+### Claude Code
+
+本地：
+
+```bash
+export ANTHROPIC_BASE_URL=http://127.0.0.1:4000
+export ANTHROPIC_API_KEY=local
+export ANTHROPIC_MODEL=gemma4
+export ANTHROPIC_DEFAULT_OPUS_MODEL=gemma4
+export ANTHROPIC_DEFAULT_SONNET_MODEL=gemma4
+export ANTHROPIC_DEFAULT_HAIKU_MODEL=gemma4
+```
+
+公网把地址和模型换成市场入口，key 用真的 `sk-`：
+
+```bash
+export ANTHROPIC_BASE_URL=https://llm.tunnel.aimatchem.com
+export ANTHROPIC_API_KEY=sk-...
+export ANTHROPIC_MODEL=gemma4@qwen3
+export ANTHROPIC_DEFAULT_OPUS_MODEL=gemma4@qwen3
+export ANTHROPIC_DEFAULT_SONNET_MODEL=gemma4@qwen3
+export ANTHROPIC_DEFAULT_HAIKU_MODEL=gemma4@qwen3
+```
+
+`ANTHROPIC_BASE_URL` 不要带 `/v1`，Claude Code 自己会请求 `/v1/messages`。`ANTHROPIC_AUTH_TOKEN` 同样可用，网关认 Bearer 和 `x-api-key`。三条 `ANTHROPIC_DEFAULT_*` 都要设成同一个模型，否则 Claude Code 仍会去要名为 `claude-…` 的模型。
+
+### OpenCode
+
+用 Anthropic 包，`baseURL` 要带 `/v1`（客户端会再拼 `/messages`）。写在项目或 `~/.config/opencode/opencode.json`：
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "qdbot/gemma4",
+  "providers": {
+    "qdbot": {
+      "env": ["ANTHROPIC_API_KEY"],
+      "package": "@opencode/ai/providers/anthropic",
+      "settings": { "baseURL": "http://127.0.0.1:4000/v1" },
+      "models": { "gemma4": { "modelID": "gemma4" } }
+    }
+  }
+}
+```
+
+公网把 `baseURL` 换成 `https://llm.tunnel.aimatchem.com/v1`，`modelID` 换成目录里的 id（如 `gemma4@qwen3`），`ANTHROPIC_API_KEY` 换成 `sk-` key。
+
+也可以改用 OpenAI 兼容包 `@opencode/ai/providers/openai-compatible`，`baseURL` 同样是 `https://llm.tunnel.aimatchem.com/v1`（请求 `/v1/chat/completions`）。这条只在公网市场网关上有，本地 `serve` 没有。
+
+### Codex
+
+Codex 只走 Responses API（`wire_api = "responses"`），请求 `POST /v1/responses`。本地 `serve` 没有这个端点，配置指向公网市场网关。`~/.codex/config.toml`：
+
+```toml
+model_provider = "qdbot"
+model = "gemma4@qwen3"
+
+[model_providers.qdbot]
+name = "qdbot"
+base_url = "https://llm.tunnel.aimatchem.com/v1"
+env_key = "QDBOT_API_KEY"
+wire_api = "responses"
+```
+
+```bash
+export QDBOT_API_KEY=sk-...
+```
+
+`base_url` 以 `/v1` 结尾，Codex 会自己拼 `/responses`。`wire_api` 只能写 `responses`。
 
 ## 构建
 
