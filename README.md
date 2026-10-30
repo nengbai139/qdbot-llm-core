@@ -1,6 +1,6 @@
 # qdbot-llm-core
 
-当前版本 **v0.6.0**。
+当前版本 **v0.6.1**。
 
 把本地 [Ollama](https://ollama.com) 或 [vMLX](https://vmlx.net/) 模型变成 **Anthropic、OpenAI、Responses** 兼容的 API 服务。Claude Code、Anthropic SDK、OpenAI SDK、Codex、OpenCode 可以直接接本地模型，也可以经反向隧道挂到公网。
 
@@ -151,6 +151,10 @@ export QDBOT_API_KEY=local
 
 ## 版本
 
+### v0.6.1
+
+正向代理实现移出本仓库，留在闭源客户端。
+
 ### v0.6.0
 
 增加本地 vMLX 上游。`qdbot-llm serve --backend vmlx` 和 `expose --backend vmlx` 把 Anthropic、OpenAI、Responses 原样转到 vMLX（默认 `http://127.0.0.1:8000`）。Ollama 仍是默认上游。
@@ -161,7 +165,7 @@ export QDBOT_API_KEY=local
 
 ### v0.4.0
 
-正向代理下沉到本仓库。客户端不再把 `auth_secret` 落盘。
+客户端不再把 `auth_secret` 落盘。
 
 ### v0.3.0
 
