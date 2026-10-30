@@ -14,10 +14,15 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
+	"runtime"
+	"strings"
 	"time"
 
 	"github.com/nengbai139/qdbot-llm-core/llm"
@@ -58,7 +63,7 @@ func usage() {
 
 用法: qdbot-llm <子命令>
 
-  install             检测 ollama，未装则打印安装提示（不自动装）
+  install             查看 Ollama / vMLX 是否就绪，并给出下一步（不自动装）
   pull <model>        拉取模型（透传 ollama pull）
   list                列出本地模型（透传 ollama list）
   serve               仅本地网关（127.0.0.1:4000，P0）
@@ -127,16 +132,102 @@ func upstreamFlags(fs *flag.FlagSet) (backend, ollama, vmlx *string) {
 }
 
 // serveUpstream 按 backend 启动。vMLX 原样转发；Ollama 走协议翻译。
+// 指定了 vmlx 但进程没在听、Ollama 里已有模型时，改走 Ollama，避免再下一份权重。
 func serveUpstream(addr, backend, ollama, vmlx string) {
-	switch backend {
+	s := inspect(ollama, vmlx, backend == "vmlx", vmlxOnThisOS())
+	use, err := pickBackend(backend, s.vmlxUp, len(s.models) > 0)
+	if err != nil {
+		fmt.Fprint(os.Stderr, s.report())
+		os.Exit(1)
+	}
+	if backend == "vmlx" && use == "ollama" {
+		log.Printf("vMLX 未启动，改用 Ollama 已有模型（%s），不另下载一份", strings.Join(s.models, ", "))
+	}
+	if use == "ollama" {
+		if msg := s.ollamaProblem(); msg != "" {
+			log.Print(msg)
+		}
+	}
+	switch use {
 	case "vmlx":
 		llm.ServeVMLX(addr, vmlx)
-	case "", "ollama":
+	case "ollama":
 		llm.Serve(addr, ollama)
 	default:
 		log.Fatalf("未知 backend %q（用 ollama 或 vmlx）", backend)
 	}
 }
+
+// pickBackend 决定实际上游。vMLX 只有已经在监听时才用；否则有 Ollama 模型就用那一份。
+func pickBackend(requested string, vmlxUp, ollamaHasModels bool) (string, error) {
+	switch requested {
+	case "", "ollama":
+		return "ollama", nil
+	case "vmlx":
+		if vmlxUp {
+			return "vmlx", nil
+		}
+		if ollamaHasModels {
+			return "ollama", nil
+		}
+		return "", fmt.Errorf("vMLX 未启动，Ollama 里也没有模型")
+	default:
+		return "", fmt.Errorf("未知 backend %q（用 ollama 或 vmlx）", requested)
+	}
+}
+
+func endpointUp(url string) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 800*time.Millisecond)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return false
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return false
+	}
+	resp.Body.Close()
+	return resp.StatusCode < 500
+}
+
+func ollamaModels(base string) (names []string, ok bool) {
+	ctx, cancel := context.WithTimeout(context.Background(), 800*time.Millisecond)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(base, "/")+"/api/tags", nil)
+	if err != nil {
+		return nil, false
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, false
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, false
+	}
+	var body struct {
+		Models []struct {
+			Name string `json:"name"`
+		} `json:"models"`
+	}
+	if json.NewDecoder(resp.Body).Decode(&body) != nil {
+		return nil, false
+	}
+	for _, m := range body.Models {
+		if m.Name != "" {
+			names = append(names, m.Name)
+		}
+	}
+	return names, true
+}
+
+func vmlxOnThisOS() bool {
+	return runtimeGOOS == "darwin"
+}
+
+// runtimeGOOS 便于测试替换。默认是本机系统。
+var runtimeGOOS = goos()
 
 // ollamaEnv 返回 OLLAMA_URL，未设置时返回默认值。
 func ollamaEnv() string {
@@ -152,3 +243,5 @@ func vmlxEnv() string {
 	}
 	return "http://127.0.0.1:8000"
 }
+
+func goos() string { return runtime.GOOS }

@@ -1,6 +1,6 @@
 # qdbot-llm-core
 
-当前版本 **v0.6.1**。
+当前版本 **v0.6.2**。
 
 把本地 [Ollama](https://ollama.com) 或 [vMLX](https://vmlx.net/) 模型变成 **Anthropic、OpenAI、Responses** 兼容的 API 服务。Claude Code、Anthropic SDK、OpenAI SDK、Codex、OpenCode 可以直接接本地模型，也可以经反向隧道挂到公网。
 
@@ -36,7 +36,7 @@ export ANTHROPIC_MODEL=gemma4
 ## 命令
 
 ```bash
-qdbot-llm install                # 检测 ollama，未装则打印安装提示（不自动装）
+qdbot-llm install                # 查看 Ollama / vMLX 是否就绪，并给出下一步（不自动装）
 qdbot-llm pull <model>           # 拉取模型（透传 ollama pull）
 qdbot-llm list                   # 列出本地模型（透传 ollama list）
 qdbot-llm serve [--backend ollama|vmlx] [--ollama ...] [--vmlx ...]   # 启动本地网关
@@ -53,12 +53,13 @@ qdbot-llm serve --backend vmlx
 qdbot-llm serve --backend vmlx --vmlx http://127.0.0.1:8080
 ```
 
-挂到公网前先 `qtunnel login`。`expose` 和 `serve` 用同一组 `--backend`。`--model` 必须是 vMLX 认得的名字，公网 id 是 `模型名@隧道别名`：
+模型已经在 Ollama 里时，直接暴露这一份，不要再 `vmlx serve` 同一个模型（那会另外下载）：
 
 ```bash
-vmlx serve mlx-community/Qwen3-8B-4bit
-qdbot-llm expose --backend vmlx --model mlx-community/Qwen3-8B-4bit
+qdbot-llm expose --model gemma4
 ```
+
+`--backend vmlx` 只在 vMLX 已经监听时原样转发。vMLX 没起来、Ollama 里已有模型时，自动改走 Ollama。公网 id 仍是 `模型名@隧道别名`。挂到公网前先 `qtunnel login`。
 
 使用方仍连 `https://llm.tunnel.aimatchem.com`，模型 id 看 `GET /v1/models`。
 
@@ -150,6 +151,10 @@ export QDBOT_API_KEY=local
 ```
 
 ## 版本
+
+### v0.6.2
+
+`qdbot-llm install` 同时说明 Ollama 和 vMLX 是否就绪，并给出下一步。不自动安装。vMLX 没在听、Ollama 里已有模型时，走已有的那一份，不再下载第二份。
 
 ### v0.6.1
 

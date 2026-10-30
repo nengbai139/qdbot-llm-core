@@ -15,19 +15,10 @@ func ollamaBin() string {
 	return p
 }
 
-// cmdInstall 检测 ollama，未装则打印安装提示。
-// 刻意不自动安装（brew install ollama 属于系统级改动，交给用户自己决定）。
+// cmdInstall 查看 Ollama 和 vMLX 是否就绪，并给出下一步。
+// 刻意不自动安装，系统级改动交给用户自己决定。
 func cmdInstall() {
-	if bin := ollamaBin(); bin != "" {
-		fmt.Printf("✓ ollama 已安装: %s\n", bin)
-		return
-	}
-	fmt.Println("未检测到 ollama，请先安装：")
-	fmt.Println("  macOS:   brew install ollama")
-	fmt.Println("  Linux:   curl -fsSL https://ollama.com/install.sh | sh")
-	fmt.Println("  Windows: 从 https://ollama.com/download 下载安装包")
-	fmt.Println()
-	fmt.Println("装好后拉模型: qdbot-llm pull gemma4")
+	fmt.Print(inspect(ollamaEnv(), vmlxEnv(), true, vmlxOnThisOS()).report())
 }
 
 // cmdPull 拉取模型（透传给 ollama pull）。
